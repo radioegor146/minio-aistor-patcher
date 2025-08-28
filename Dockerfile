@@ -9,7 +9,7 @@ COPY . .
 COPY --from=minio /bin/minio minio
 RUN sh generate-keys.sh
 RUN python3 replace-key.py minio minio-patched new-public.pem
-RUN python3 generate-license new-private.pem minio.license
+RUN python3 generate-license.py new-private.pem minio.license
 
 FROM quay.io/minio/aistor/minio:latest
 COPY --from=patcher /patcher/minio-patched /bin/minio
