@@ -13,5 +13,6 @@ RUN python3 generate-license.py new-private.pem minio.license
 
 FROM quay.io/minio/aistor/minio:latest
 COPY --from=patcher /patcher/minio-patched /bin/minio
+RUN chmod +x /bin/minio
 COPY --from=patcher /patcher/minio.license /minio.license
 ENV MINIO_LICENSE=/minio.license
