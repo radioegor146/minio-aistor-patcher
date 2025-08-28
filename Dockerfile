@@ -1,6 +1,6 @@
 FROM quay.io/minio/aistor/minio:latest AS minio
 
-FROM python:3.14-alpine AS patcher
+FROM python:3.13-alpine AS patcher
 WORKDIR /patcher
 COPY requirements.txt requirements.txt
 RUN pip3 install -r requirements.txt
