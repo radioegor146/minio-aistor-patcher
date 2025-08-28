@@ -29,4 +29,5 @@ license_jwt = jwcrypto.jwt.JWT(claims=jwt_data, header={
 })
 license_jwt.make_signed_token(private_key)
 
-print(license_jwt.serialize())
+with open(sys.argv[2], "w") as f:
+    f.write(license_jwt.serialize())
