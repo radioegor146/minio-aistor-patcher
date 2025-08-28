@@ -4,7 +4,7 @@ As Minio changed license terms and trimmed it's open source edition, I created t
 
 It does what it does.
 
-Example:
+Example `docker-compose.yml`:
 
 ```yaml
 services:
