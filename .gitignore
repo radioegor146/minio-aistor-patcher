@@ -1,0 +1,4 @@
+.venv
+new-public.pem
+new-private.pem
+minio
