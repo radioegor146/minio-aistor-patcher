@@ -1,0 +1,111 @@
+name: License Check
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  platforms:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.detect.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: detect
+        name: Read architectures from the pinned manifest
+        run: |
+          ref=$(grep -E '^FROM quay\.io/kmsuk161/aistor' Dockerfile | tail -1 | awk '{print $2}')
+          echo "base ref: $ref"
+          # .Image is the config map for a multi-arch index (keys "os/arch", with
+          # attestation manifests already excluded) and the bare config for a
+          # single-arch image.
+          img=$(docker buildx imagetools inspect "$ref" --format '{{json .Image}}')
+          mapfile -t plats < <(echo "$img" \
+            | jq -r 'if has("architecture") then "\(.os)/\(.architecture)" else keys[] end' \
+            | grep '^linux/' | sort -u)
+          if [ "${#plats[@]}" -eq 0 ]; then
+            echo "::error::no linux platforms found in manifest"; exit 1
+          fi
+          entries=()
+          for p in "${plats[@]}"; do
+            arch=${p#linux/}
+            case "$arch" in
+              amd64) runner=ubuntu-latest ;;
+              arm64) runner=ubuntu-24.04-arm ;;
+              *) echo "::error::no native GitHub runner for linux/$arch"; exit 1 ;;
+            esac
+            entries+=("{\"arch\":\"$arch\",\"runner\":\"$runner\"}")
+          done
+          matrix=$(printf '%s\n' "${entries[@]}" | jq -s -c '{include: .}')
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "matrix: $matrix"
+
+  verify:
+    needs: platforms
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.platforms.outputs.matrix) }}
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build licensed image (linux/${{ matrix.arch }})
+        run: docker build --platform linux/${{ matrix.arch }} -t minio-aistor:ci .
+
+      - name: Start server
+        run: |
+          docker run -d --name aistor \
+            --platform linux/${{ matrix.arch }} \
+            --add-host subnet.min.io:0.0.0.0 \
+            -p 9000:9000 \
+            -e MINIO_ROOT_USER=ci-admin \
+            -e MINIO_ROOT_PASSWORD=ci-admin-secret \
+            minio-aistor:ci server /data
+
+      - name: Wait for health
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:9000/minio/health/live >/dev/null; then
+              echo "live after ${i}s"; exit 0
+            fi
+            docker inspect aistor --format '{{.State.Running}}' | grep -q true \
+              || { echo "container exited early"; docker logs aistor; exit 1; }
+            sleep 1
+          done
+          echo "server did not become live in time"; docker logs aistor; exit 1
+
+      - name: Verify license via mc license info
+        run: |
+          docker exec aistor mc alias set loc \
+            http://127.0.0.1:9000 ci-admin ci-admin-secret >/dev/null
+          info=$(docker exec aistor mc license info loc --json)
+          echo "$info" | jq .
+          status=$(echo "$info" | jq -r '.status')
+          org=$(echo "$info" | jq -r '.info.Organization // empty')
+          if [ "$status" != "success" ] || [ -z "$org" ]; then
+            echo "::error::license not accepted on linux/${{ matrix.arch }} (status=$status org=$org)"
+            docker logs aistor
+            exit 1
+          fi
+          echo "license accepted on linux/${{ matrix.arch }}: org=$org plan=$(echo "$info" | jq -r '.info.Plan')"
+
+      - name: Server logs
+        if: always()
+        run: docker logs aistor 2>&1 || true
+
+
+  license-check:
+    needs: [platforms, verify]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gate on all architectures
+        run: |
+          echo "platforms=${{ needs.platforms.result }} verify=${{ needs.verify.result }}"
+          if [ "${{ needs.platforms.result }}" != "success" ]; then
+            echo "::error::architecture detection failed"; exit 1
+          fi
+          if [ "${{ needs.verify.result }}" != "success" ]; then
+            echo "::error::license check failed on at least one architecture"; exit 1
+          fi
+          echo "license accepted on all manifest architectures"
