@@ -3,7 +3,7 @@
   "extends": ["config:recommended"],
   "enabledManagers": ["dockerfile"],
   "pinDigests": true,
-  "schedule": ["0 * * * *"],
+  "schedule": ["* */1 * * *"],
   "packageRules": [
     {
       "description": "Track the aistor :latest digest and auto-merge digest bumps once the license check is green.",
