@@ -1,4 +1,4 @@
-FROM quay.io/minio/aistor/minio@sha256:3fe2c9acc9bf79ce982fa61d4befb97556a34e44e278395152ed54de471bb95d AS minio
+FROM quay.io/minio/aistor/minio@sha256:9510e5f116c2e507a042f328b77992c651dcdd04ab79e676bb85f13e2aa8363a AS minio
 
 FROM python:3.13-alpine AS patcher
 RUN apk add openssl
@@ -11,7 +11,7 @@ RUN sh generate-keys.sh
 RUN python3 replace-key.py minio minio-patched new-public.pem
 RUN python3 generate-license.py new-private.pem minio.license
 
-FROM quay.io/minio/aistor/minio@sha256:3fe2c9acc9bf79ce982fa61d4befb97556a34e44e278395152ed54de471bb95d
+FROM quay.io/minio/aistor/minio@sha256:9510e5f116c2e507a042f328b77992c651dcdd04ab79e676bb85f13e2aa8363a
 COPY --from=patcher /patcher/minio-patched /bin/minio
 RUN chmod +x /bin/minio
 COPY --from=patcher /patcher/minio.license /minio.license
