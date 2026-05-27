@@ -1,0 +1,23 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "enabledManagers": ["dockerfile"],
+  "pinDigests": true,
+  "schedule": ["0 * * * *"],
+  "packageRules": [
+    {
+      "description": "Track the aistor :latest digest and auto-merge digest bumps once the license check is green.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["quay.io/minio/aistor/minio"],
+      "matchUpdateTypes": ["digest", "pin"],
+      "automerge": true,
+      "platformAutomerge": true
+    },
+    {
+      "description": "The python license-fetch stage is build-time only; keep it out of the update stream.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["python"],
+      "enabled": false
+    }
+  ]
+}
